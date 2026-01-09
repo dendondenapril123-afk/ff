@@ -14,20 +14,9 @@
             padding: 16px;
             line-height: 1.4;
         }
-        h1 {
-            color: #58a6ff;
-            text-align: center;
-            margin: 12px 0 20px;
-            font-size: 24px;
-        }
-        .loading, .error {
-            text-align: center;
-            color: #8b949e;
-            margin: 30px 0;
-        }
-        .error {
-            color: #ff6b6b;
-        }
+        h1 { color: #58a6ff; text-align: center; margin: 12px 0 20px; font-size: 24px; }
+        .loading, .error { text-align: center; color: #8b949e; margin: 30px 0; }
+        .error { color: #ff6b6b; }
         .match {
             background: #161b22;
             border-radius: 12px;
@@ -35,20 +24,9 @@
             margin: 12px 0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
-        .teams {
-            font-weight: bold;
-            font-size: 18px;
-            margin-bottom: 6px;
-        }
-        .time {
-            color: #8b949e;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        .odds {
-            margin: 8px 0;
-            font-size: 15px;
-        }
+        .teams { font-weight: bold; font-size: 18px; margin-bottom: 6px; }
+        .time { color: #8b949e; font-size: 14px; margin-bottom: 10px; }
+        .odds { margin: 8px 0; font-size: 15px; }
         button {
             background: #238636;
             color: white;
@@ -61,9 +39,7 @@
             width: 100%;
             margin-top: 10px;
         }
-        button:active {
-            background: #2ea043;
-        }
+        button:active { background: #2ea043; }
         #result {
             margin-top: 24px;
             padding: 16px;
@@ -71,10 +47,7 @@
             border-radius: 12px;
             min-height: 120px;
         }
-        small {
-            color: #8b949e;
-            font-size: 12px;
-        }
+        small { color: #8b949e; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -89,133 +62,103 @@
         Telegram.WebApp.MainButton.setText("Закрыть").show().onClick(() => Telegram.WebApp.close());
 
         const API_KEY = '632d6832fba9cc24feb29f4629ff2896';
-        const SPORT = 'soccer_epl';         // АПЛ, можно поменять на soccer_uefa_champions_league и т.д.
-        const REGIONS = 'eu';               // eu, uk, us
+        const SPORT = 'soccer_epl';
+        const REGIONS = 'eu';
 
         async function loadMatches() {
-            const url = https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?apiKey=${API_KEY}&regions=${REGIONS}&markets=h2h&oddsFormat=decimal;
-            
+            const url = https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?apiKey=${632d6832fba9cc24feb29f4629ff2896}&regions=${REGIONS}&markets=h2h,totals,btts&oddsFormat=decimal;
+
             try {
                 const response = await fetch(url);
-                
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error("Ошибка 401: Неверный или неактивный API-ключ. Проверьте на the-odds-api.com");
-                    }
-                    if (response.status === 429) {
-                        throw new Error("Ошибка 429: Лимит запросов превышен (500 в месяц на бесплатном плане)");
-                    }
-                    throw new Error(`Ошибка API: ${response.status} ${response.statusText}`);
+                    throw new Error(`HTTP ошибка! Статус: ${response.status} (если 401 — ключ недействителен, 429 — лимит исчерпан)`);
                 }
 
                 const matches = await response.json();
+
                 const container = document.getElementById('matches');
                 container.innerHTML = '';
 
                 if (matches.length === 0) {
-                    container.innerHTML = '<p class="error">Сейчас нет предстоящих матчей в этой лиге</p>';
+                    container.innerHTML = '<p class="error">Сейчас нет матчей в АПЛ</p>';
                     return;
                 }
 
                 matches.slice(0, 6).forEach(match => {
                     const home = match.home_team;
                     const away = match.away_team;
-                    const commenceTime = new Date(match.commence_time);
-                    const timeStr = commenceTime.toLocaleString('ru-RU', {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit'
+                    const timeStr = new Date(match.commence_time).toLocaleString('ru-RU', {
+                        weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                     });
 
-                    const bookmaker = match.bookmakers?.[0];
-                    let homeOdds = '—', drawOdds = '—', awayOdds = '—';
+                    const book = match.bookmakers?.[0]; // берём первого букмекера
+                    let h2h = {}, totals = {}, btts = {};
 
-                    if (bookmaker && bookmaker.markets?.[0]?.outcomes) {
-                        homeOdds = bookmaker.markets[0].outcomes.find(o => o.name === home)?.price?.toFixed(2) || '—';
-                        drawOdds = bookmaker.markets[0].outcomes.find(o => o.name === 'Draw')?.price?.toFixed(2) || '—';
-                        awayOdds = bookmaker.markets[0].outcomes.find(o => o.name === away)?.price?.toFixed(2) || '—';
+                    if (book) {
+                        book.markets?.forEach(m => {
+                            if (m.key === 'h2h') h2h = m;
+                            if (m.key === 'totals') totals = m;
+                            if (m.key === 'btts') btts = m;
+                        });
                     }
 
                     const div = document.createElement('div');
                     div.className = 'match';
-                    div.innerHTML = `
-                        <div class="teams">${home} — ${away}</div>
-                        <div class="time">${timeStr}</div>
-                        <div class="odds">П1 ${homeOdds}  |  X ${drawOdds}  |  П2 ${awayOdds}</div>
-                        <button class="predict-btn">Показать прогноз</button>
-                    `;
+                    div.innerHTML = `<div class="teams">${home} — ${away}</div>
+                 <div class="time">${timeStr}</div>
+                 <div class="odds">
+                   П1/X/П2: ${h2h.outcomes?.[0]?.price?.toFixed(2) || '?'} / ${h2h.outcomes?.[2]?.price?.toFixed(2) || '?'} / ${h2h.outcomes?.[1]?.price?.toFixed(2) || '?'}<br>
+                   Тотал 2.5: ${totals.outcomes?.find(o => o.name === 'Over 2.5')?.price?.toFixed(2) || '?'} / ${totals.outcomes?.find(o => o.name === 'Under 2.5')?.price?.toFixed(2) || '?'}
+                 </div>
+                 <button class="predict-btn">Прогноз</button>`;
 
                     div.querySelector('.predict-btn').onclick = () => {
-                        const ho = homeOdds !== '—' ? parseFloat(homeOdds) : 0;
-                        const dr = drawOdds !== '—' ? parseFloat(drawOdds) : 0;
-                        const ao = awayOdds !== '—' ? parseFloat(awayOdds) : 0;
-                        showPrediction(home, away, ho, dr, ao);
+                        showPrediction({ home, away, h2h, totals, btts });
                     };
 
                     container.appendChild(div);
                 });
             } catch (error) {
-                console.error('Ошибка загрузки матчей:', error);
-                document.getElementById('matches').innerHTML = 
-                    <p class="error">Не удалось загрузить матчи<br>${error.message}</p>;
+                console.error(error);
+                document.getElementById('matches').innerHTML = <p class="error">Ошибка: ${error.message}</p>;
             }
         }
 
-        function showPrediction(home, away, homeOdds, drawOdds, awayOdds) {
-            let predictionText = '';
-            const pHome = homeOdds ? Math.round((1 / homeOdds) * 100 * 0.92) : 0; // 92% — примерная корректировка маржи
-            const pDraw = drawOdds ? Math.round((1 / drawOdds) * 100 * 0.92) : 0;
-            const pAway = awayOdds ? Math.round((1 / awayOdds) * 100 * 0.92) : 0;
+        function showPrediction({ home, away, h2h, totals, btts }) {
+            let text = '';
 
-            if (pHome > 60) {
-                predictionText = Явный фаворит — ${home} (${pHome}%)! Высокая вероятность победы хозяев.;
-            } else if (pAway > 60) {
-                predictionText = ${away} выглядит сильнее (${pAway}%)! Гости могут взять верх.;
-            } else if (pDraw > 32) {
-                predictionText = Вероятна ничья (${pDraw}%). Осторожный и равный матч.;
-            } else {
-                predictionText = Равные шансы. Нет явного фаворита (П1 ~${pHome}%, П2 ~${pAway}%).;
+            // Простой прогноз на 1X2
+            if (h2h?.outcomes) {
+                const p1 = h2h.outcomes.find(o => o.name === home);
+                const p2 = h2h.outcomes.find(o => o.name === away);
+                const px = h2h.outcomes.find(o => o.name === 'Draw');
+                const probHome = p1 ? Math.round(92 / p1.price) : 0;
+                if (probHome > 60) text += Явный фаворит — ${home} (~${probHome}%)!<br>;
             }
+
+            // Тотал
+            if (totals?.outcomes) {
+                const over = totals.outcomes.find(o => o.name.includes('Over'));
+                if (over && over.price < 2.0) text += Ожидается много голов (Over 2.5 вероятнее);
+            }
+
+            // BTTS
+            if (btts?.outcomes) {
+                const yes = btts.outcomes.find(o => o.name === 'Yes');
+                if (yes && yes.price < 2.0) text += <br>Обе команды скорее всего забьют (Да ~${Math.round(92 / yes.price)}%);
+            }
+
+            text = text || 'Равный матч без ярко выраженных тенденций.';
 
             document.getElementById('result').innerHTML = `
                 <h2>${home} — ${away}</h2>
-                <p>${predictionText}</p>
-                <small>Вероятности рассчитаны по коэффициентам (примерная корректировка маржи ~8%). Футбол непредсказуем!</small>
+                <p>${text}</p>
+                <small>Расчёт по коэффициентам (маржа ~8%). Это вероятностный прогноз!</small>
             `;
-
             document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Запускаем загрузку сразу
         loadMatches();
     </script>
 </body>
-</html>// Внутри showPrediction:
-
-// Прогноз на голы
-const totalGoalsMarket = findMarketByKey('total_goals');
-if (totalGoalsMarket && totalGoalsMarket.outcomes.length > 0) {
-  const outcome = totalGoalsMarket.outcomes[0]; // или самый вероятный исход
-  const totalGoals = outcome.name; // например, "2.5" или "Больше 2.5"
-  const probability = outcome.price; // вероятность
-  // Вывести или сохранить
-}
-
-// Прогноз обе забьют
-const btsMarket = findMarketByKey('both_teams_to_score');
-if (btsMarket && btsMarket.outcomes.length >= 2) {
-  const yesOutcome = btsMarket.outcomes.find(o => o.name === 'Yes');
-  const noOutcome = btsMarket.outcomes.find(o => o.name === 'No');
-  // Можно вывести оба шанса или только самый вероятный
-}
-
-// Кто первый забьёт
-const firstScoreMarket = findMarketByKey('first_to_score');
-if (firstScoreMarket) {
-  // вывести команду с самой высокой вероятностью
-  const firstBet = firstScoreMarket.outcomes.reduce((prev, curr) => {
-    return (curr.price > prev.price) ? curr : prev;
-  }, firstScoreMarket.outcomes[0]);
-}
+</html>
